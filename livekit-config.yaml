@@ -1,0 +1,36 @@
+port: 7880
+
+rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+  # For localhost/development testing
+  # use_external_ip: false
+  # Uncomment these for production on VPS:
+  use_external_ip: true
+  #  external_ip: 142.171.228.169
+  
+  # Allow TCP fallback for restrictive networks
+  tcp_port: 7881
+  
+  # ICE configuration
+  stun_servers:
+    - stun.l.google.com:19302
+
+keys:
+  devkey: secret
+
+# Room configuration
+room:
+  auto_create: true
+  empty_timeout: 300
+  max_participants: 10
+
+# # Enable recording
+# recording:
+#   enabled: true
+#   output_directory: /recordings
+  
+# Logging
+logging:
+  level: info
+  sample: true
