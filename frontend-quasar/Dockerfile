@@ -10,7 +10,7 @@ COPY . .
 
 # Build Quasar app for production
 # RUN npx quasar build
-RUN npm run build
+# RUN npm run build
 
 
 # Production stage with Nginx
