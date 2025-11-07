@@ -17,7 +17,9 @@
         <!-- Remote Video -->
         <div class="video-wrapper remote">
           <video ref="remoteVideo" autoplay playsinline></video>
-          <div v-if="remoteUsername" class="video-label">{{ remoteUsername }}</div>
+          <div v-if="remoteUsername" class="video-label">
+            {{ remoteUsername }}
+          </div>
           <div v-else class="waiting">Waiting for participant...</div>
         </div>
 
@@ -29,8 +31,8 @@
       </div>
 
       <div class="controls">
-        <button 
-          @click="toggleAudio" 
+        <button
+          @click="toggleAudio"
           :class="['control-btn', { active: !audioMuted }]"
           title="Toggle microphone"
         >
@@ -38,8 +40,8 @@
           <span v-else>🔇</span>
         </button>
 
-        <button 
-          @click="toggleVideo" 
+        <button
+          @click="toggleVideo"
           :class="['control-btn', { active: !videoMuted }]"
           title="Toggle camera"
         >
@@ -47,16 +49,16 @@
           <span v-else>📷</span>
         </button>
 
-        <button 
-          @click="toggleScreenShare" 
+        <button
+          @click="toggleScreenShare"
           :class="['control-btn', { active: isScreenSharing }]"
           title="Toggle screen share"
         >
           <span>🖥️</span>
         </button>
 
-        <button 
-          @click="toggleRecording" 
+        <button
+          @click="toggleRecording"
           :class="['control-btn', { active: isRecording }]"
           title="Toggle recording"
         >
@@ -64,319 +66,383 @@
           <span v-else>⏹️</span>
         </button>
 
-        <button 
-          @click="endCall" 
-          class="control-btn end-call"
-          title="End call"
-        >
+        <button @click="endCall" class="control-btn end-call" title="End call">
           <span>❌</span>
         </button>
       </div>
 
-      <div class="room-info">
-        Room: {{ roomName }}
-      </div>
+      <div class="room-info">Room: {{ roomName }}</div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import axios from 'axios'
-import { 
-  Room, 
-  RoomEvent, 
+import { ref, onMounted, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+import axios from "axios";
+import {
+  Room,
+  RoomEvent,
   Track,
   createLocalTracks,
-  TrackPublication
-} from 'livekit-client'
+  TrackPublication,
+} from "livekit-client";
 
 export default {
-  name: 'Room',
+  name: "Room",
   setup() {
-    const route = useRoute()
-    const router = useRouter()
-    const authStore = useAuthStore()
-    
-    const roomName = ref(route.params.roomName)
-    const username = ref(authStore.currentUser?.username || 'Guest')
-    const remoteUsername = ref('')
-    
-    const localVideo = ref(null)
-    const remoteVideo = ref(null)
-    const screenShareVideo = ref(null)
-    
-    const connected = ref(false)
-    const connecting = ref(true)
-    const audioMuted = ref(false)
-    const videoMuted = ref(false)
-    const isScreenSharing = ref(false)
-    const isRecording = ref(false)
-    const screenShareTrack = ref(null)
-    const connectionError = ref('')
-    
-    let room = null
-    let localAudioTrack = null
-    let localVideoTrack = null
-    let localScreenTrack = null
+    const route = useRoute();
+    const router = useRouter();
+    const authStore = useAuthStore();
+
+    const roomName = ref(route.params.roomName);
+    const username = ref(authStore.currentUser?.username || "Guest");
+    const remoteUsername = ref("");
+
+    const localVideo = ref(null);
+    const remoteVideo = ref(null);
+    const screenShareVideo = ref(null);
+
+    const connected = ref(false);
+    const connecting = ref(true);
+    const audioMuted = ref(false);
+    const videoMuted = ref(false);
+    const isScreenSharing = ref(false);
+    const isRecording = ref(false);
+    const screenShareTrack = ref(null);
+    const connectionError = ref("");
+
+    let room = null;
+    let localAudioTrack = null;
+    let localVideoTrack = null;
+    let localScreenTrack = null;
 
     const connectToRoom = async () => {
       try {
         // Ensure user is authenticated
         if (!authStore.currentUser) {
-          console.error('User not authenticated')
-          await authStore.checkAuth()
+          console.error("User not authenticated");
+          await authStore.checkAuth();
           if (!authStore.currentUser) {
-            alert('Please login first')
-            router.push('/login')
-            return
+            alert("Please login first");
+            router.push("/login");
+            return;
           }
         }
 
         // Update username from store
-        username.value = authStore.currentUser.username
+        username.value = authStore.currentUser.username;
 
         // Get LiveKit token from backend
-        const response = await axios.post('/api/rooms/join', {
-          roomName: roomName.value,
-          calleeUsername: route.query.callee
-        }, {
-          headers: authStore.getAuthHeader()
-        })
+        const response = await axios.post(
+          "/api/rooms/join",
+          {
+            roomName: roomName.value,
+            calleeUsername: route.query.callee,
+          },
+          {
+            headers: authStore.getAuthHeader(),
+          }
+        );
 
-        const { token, url } = response.data
+        const { token, url } = response.data;
 
-        console.log('LiveKit URL:', url)
-        console.log('Token received:', typeof token, token ? 'yes' : 'no')
+        console.log("LiveKit URL:", url);
+        console.log("Token received:", typeof token, token ? "yes" : "no");
 
         // Create room instance
         room = new Room({
           adaptiveStream: true,
           dynacast: true,
-        })
+        });
 
         // Set up event listeners
-        room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
-        room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
-        room.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
-        room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+        room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+        room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+        room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+        room.on(
+          RoomEvent.ParticipantDisconnected,
+          handleParticipantDisconnected
+        );
         room.on(RoomEvent.Disconnected, (reason) => {
-          console.log('Disconnected:', reason)
-        })
+          console.log("Disconnected:", reason);
+        });
 
         // Connect to room - ensure token is a string
-        await room.connect(url, String(token))
+        await room.connect(url, String(token));
 
         // Create and publish local tracks
         const tracks = await createLocalTracks({
           audio: true,
           video: true,
-        })
+        });
 
-        console.log('Created local tracks:', tracks.length)
+        console.log("Created local tracks:", tracks.length);
 
         for (const track of tracks) {
-          await room.localParticipant.publishTrack(track)
-          
+          await room.localParticipant.publishTrack(track);
+
           if (track.kind === Track.Kind.Video) {
-            localVideoTrack = track
+            localVideoTrack = track;
             // Attach to local video element
             setTimeout(() => {
               if (localVideo.value) {
-                track.attach(localVideo.value)
-                console.log('Local video attached')
+                track.attach(localVideo.value);
+                console.log("Local video attached");
               }
-            }, 100)
+            }, 100);
           } else if (track.kind === Track.Kind.Audio) {
-            localAudioTrack = track
-            console.log('Local audio track created')
+            localAudioTrack = track;
+            console.log("Local audio track created");
           }
         }
 
-        connected.value = true
-        connecting.value = false
+        connected.value = true;
+        connecting.value = false;
 
-        console.log('Connected to room, waiting for participants...')
+        console.log("Connected to room, waiting for participants...");
 
         // Check for existing participants and their tracks
-        room.remoteParticipants.forEach(participant => {
-          console.log('Existing participant:', participant.identity)
-          remoteUsername.value = participant.identity
-          
-          // Subscribe to existing tracks
-          participant.trackPublications.forEach(publication => {
-            if (publication.track) {
-              handleTrackSubscribed(publication.track, publication, participant)
-            }
-          })
-        })
+        room.remoteParticipants.forEach((participant) => {
+          console.log("Existing participant:", participant.identity);
+          remoteUsername.value = participant.identity;
 
+          // Subscribe to existing tracks
+          participant.trackPublications.forEach((publication) => {
+            if (publication.track) {
+              handleTrackSubscribed(
+                publication.track,
+                publication,
+                participant
+              );
+            }
+          });
+        });
       } catch (error) {
-        console.error('Failed to connect to room:', error)
-        connectionError.value = error.response?.data?.error || error.message || 'Connection failed'
-        connecting.value = false
-        
+        console.error("Failed to connect to room:", error);
+        connectionError.value =
+          error.response?.data?.error || error.message || "Connection failed";
+        connecting.value = false;
+
         setTimeout(() => {
-          alert('Failed to connect to room. Please try again.')
-          router.push('/')
-        }, 2000)
+          alert("Failed to connect to room. Please try again.");
+          router.push("/");
+        }, 2000);
       }
-    }
+    };
 
     const handleTrackSubscribed = (track, publication, participant) => {
-      console.log('Track subscribed:', track.kind, 'from', participant.identity)
-      
+      console.log(
+        "Track subscribed:",
+        track.kind,
+        "from",
+        participant.identity
+      );
+
       if (track.kind === Track.Kind.Video) {
         if (publication.source === Track.Source.ScreenShare) {
-          screenShareTrack.value = track
+          screenShareTrack.value = track;
           // Wait for next tick to ensure ref is available
           setTimeout(() => {
             if (screenShareVideo.value) {
-              track.attach(screenShareVideo.value)
-              console.log('Screen share attached')
+              track.attach(screenShareVideo.value);
+              console.log("Screen share attached");
             }
-          }, 100)
+          }, 100);
         } else {
           // Regular video track
           setTimeout(() => {
             if (remoteVideo.value) {
-              track.attach(remoteVideo.value)
-              console.log('Remote video attached')
+              track.attach(remoteVideo.value);
+              console.log("Remote video attached");
             }
-          }, 100)
+          }, 100);
         }
       } else if (track.kind === Track.Kind.Audio) {
         // Audio track - attach but don't need ref
-        const audioElement = track.attach()
-        document.body.appendChild(audioElement)
-        console.log('Remote audio attached')
+        const audioElement = track.attach();
+        document.body.appendChild(audioElement);
+        console.log("Remote audio attached");
       }
-    }
+    };
 
     const handleTrackUnsubscribed = (track, publication, participant) => {
-      console.log('Track unsubscribed:', track.kind)
-      track.detach()
+      console.log("Track unsubscribed:", track.kind);
+      track.detach();
       if (publication.source === Track.Source.ScreenShare) {
-        screenShareTrack.value = null
+        screenShareTrack.value = null;
       }
-    }
+    };
 
     const handleParticipantConnected = (participant) => {
-      console.log('Participant connected:', participant.identity)
-      remoteUsername.value = participant.identity
-    }
+      console.log("Participant connected:", participant.identity);
+      remoteUsername.value = participant.identity;
+    };
 
     const handleParticipantDisconnected = (participant) => {
-      console.log('Participant disconnected:', participant.identity)
+      console.log("Participant disconnected:", participant.identity);
       if (remoteUsername.value === participant.identity) {
-        remoteUsername.value = ''
+        remoteUsername.value = "";
       }
-    }
+    };
 
     const toggleAudio = async () => {
       if (localAudioTrack) {
         if (audioMuted.value) {
-          await localAudioTrack.unmute()
+          await localAudioTrack.unmute();
         } else {
-          await localAudioTrack.mute()
+          await localAudioTrack.mute();
         }
-        audioMuted.value = !audioMuted.value
+        audioMuted.value = !audioMuted.value;
       }
-    }
+    };
 
     const toggleVideo = async () => {
       if (localVideoTrack) {
         if (videoMuted.value) {
-          await localVideoTrack.unmute()
+          await localVideoTrack.unmute();
         } else {
-          await localVideoTrack.mute()
+          await localVideoTrack.mute();
         }
-        videoMuted.value = !videoMuted.value
+        videoMuted.value = !videoMuted.value;
       }
-    }
+    };
 
     const toggleScreenShare = async () => {
       try {
         if (isScreenSharing.value) {
           // Stop screen sharing
           if (localScreenTrack) {
-            room.localParticipant.unpublishTrack(localScreenTrack)
-            localScreenTrack.stop()
-            localScreenTrack = null
-          }
-          isScreenSharing.value = false
-        } else {
-          // Start screen sharing
-          const screenTrack = await createLocalTracks({
-            video: {
-              displaySurface: 'monitor',
-            },
-          })
+            const publications = Array.from(
+              room.localParticipant.trackPublications.values()
+            );
+            const screenPub = publications.find(
+              (p) => p.source === Track.Source.ScreenShare
+            );
 
-          localScreenTrack = screenTrack[0]
-          await room.localParticipant.publishTrack(localScreenTrack, {
+            if (screenPub) {
+              await room.localParticipant.unpublishTrack(screenPub.track);
+            }
+
+            localScreenTrack.stop();
+            localScreenTrack = null;
+          }
+          isScreenSharing.value = false;
+          console.log("Screen share stopped");
+        } else {
+          // Start screen sharing - use browser's native API
+          const screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: "always",
+              displaySurface: "monitor",
+            },
+            audio: false,
+          });
+
+          const screenVideoTrack = screenStream.getVideoTracks()[0];
+
+          if (!screenVideoTrack) {
+            throw new Error("No video track in screen share");
+          }
+
+          // Publish to LiveKit
+          await room.localParticipant.publishTrack(screenVideoTrack, {
+            name: "screen-share",
             source: Track.Source.ScreenShare,
-          })
-          isScreenSharing.value = true
+          });
+
+          localScreenTrack = screenVideoTrack;
+          isScreenSharing.value = true;
+          console.log("Screen share started");
+
+          // Handle when user stops sharing from browser UI
+          screenVideoTrack.onended = () => {
+            console.log("Screen share ended by user");
+            if (isScreenSharing.value) {
+              isScreenSharing.value = false;
+              localScreenTrack = null;
+            }
+          };
         }
       } catch (error) {
-        console.error('Screen share error:', error)
+        console.error("Screen share error:", error);
+
+        if (error.name === "NotAllowedError") {
+          alert("Screen sharing permission denied");
+        } else if (error.name === "AbortError") {
+          console.log("Screen share cancelled by user");
+        } else {
+          alert("Failed to share screen: " + error.message);
+        }
+
+        isScreenSharing.value = false;
       }
-    }
+    };
 
     const toggleRecording = async () => {
       try {
         if (isRecording.value) {
           // Stop recording logic (LiveKit server-side recording)
-          await axios.post('/api/rooms/stop-recording', {
-            roomName: roomName.value
-          }, {
-            headers: authStore.getAuthHeader()
-          })
-          isRecording.value = false
+          await axios.post(
+            "/api/rooms/stop-recording",
+            {
+              roomName: roomName.value,
+            },
+            {
+              headers: authStore.getAuthHeader(),
+            }
+          );
+          isRecording.value = false;
         } else {
           // Start recording
-          await axios.post('/api/rooms/start-recording', {
-            roomName: roomName.value
-          }, {
-            headers: authStore.getAuthHeader()
-          })
-          isRecording.value = true
+          await axios.post(
+            "/api/rooms/start-recording",
+            {
+              roomName: roomName.value,
+            },
+            {
+              headers: authStore.getAuthHeader(),
+            }
+          );
+          isRecording.value = true;
         }
       } catch (error) {
-        console.error('Recording error:', error)
+        console.error("Recording error:", error);
       }
-    }
+    };
 
     const endCall = async () => {
       if (room) {
-        room.disconnect()
-      }
-      
-      try {
-        await axios.post('/api/rooms/end-call', {
-          roomName: roomName.value
-        }, {
-          headers: authStore.getAuthHeader()
-        })
-      } catch (error) {
-        console.error('End call error:', error)
+        room.disconnect();
       }
 
-      router.push('/')
-    }
+      try {
+        await axios.post(
+          "/api/rooms/end-call",
+          {
+            roomName: roomName.value,
+          },
+          {
+            headers: authStore.getAuthHeader(),
+          }
+        );
+      } catch (error) {
+        console.error("End call error:", error);
+      }
+
+      router.push("/");
+    };
 
     onMounted(() => {
-      connectToRoom()
-    })
+      connectToRoom();
+    });
 
     onUnmounted(() => {
       if (room) {
-        room.disconnect()
+        room.disconnect();
       }
-    })
+    });
 
     return {
       roomName,
@@ -397,10 +463,10 @@ export default {
       toggleVideo,
       toggleScreenShare,
       toggleRecording,
-      endCall
-    }
-  }
-}
+      endCall,
+    };
+  },
+};
 </script>
 
 <style scoped>
@@ -431,7 +497,9 @@ export default {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-message {
