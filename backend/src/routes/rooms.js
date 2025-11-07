@@ -1,11 +1,14 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { AccessToken } = require('livekit-server-sdk');
+const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
+
+const LIVEKIT_HTTP_URL = process.env.LIVEKIT_HTTP_URL || 'http://livekit:7880';
+const roomService = new RoomServiceClient(LIVEKIT_HTTP_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
 // Middleware to verify JWT
 const authenticateToken = (req, res, next) => {
