@@ -1,1 +1,1 @@
-This is simple connect to other side of the world
+This is simple connect to other side of the world.
