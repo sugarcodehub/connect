@@ -1,6 +1,6 @@
 <template>
   <div class="chat-panel">
-    <q-scroll-area 
+    <q-scroll-area
       ref="scrollArea"
       class="messages-area"
       :thumb-style="thumbStyle"
@@ -50,13 +50,7 @@
         </template>
 
         <template v-slot:prepend>
-          <q-btn
-            flat
-            dense
-            round
-            icon="emoji_emotions"
-            color="grey-6"
-          >
+          <q-btn flat dense round icon="emoji_emotions" color="grey-6">
             <q-menu>
               <div class="emoji-picker">
                 <q-btn
@@ -78,105 +72,159 @@
 </template>
 
 <script>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from "vue";
 
 export default {
-  name: 'ChatPanel',
+  name: "ChatPanel",
   props: {
     room: {
       type: Object,
-      default: null
+      default: null,
     },
     connected: {
       type: Boolean,
-      default: false
+      default: false,
     },
     currentUsername: {
       type: String,
-      required: true
-    }
+      required: true,
+    },
   },
-  emits: ['new-message'],
+  emits: ["new-message"],
   setup(props, { emit }) {
-    const messages = ref([])
-    const messageInput = ref('')
-    const scrollArea = ref(null)
+    const messages = ref([]);
+    const messageInput = ref("");
+    const scrollArea = ref(null);
 
     const commonEmojis = [
-      '👍', '❤️', '😊', '😂', '🎉', '👏', '🔥', '✨',
-      '💯', '🙌', '👌', '✅', '❌', '⚡', '🎯', '💪'
-    ]
+      "👍",
+      "❤️",
+      "😊",
+      "😂",
+      "🎉",
+      "👏",
+      "🔥",
+      "✨",
+      "💯",
+      "🙌",
+      "👌",
+      "✅",
+      "❌",
+      "⚡",
+      "🎯",
+      "💪",
+    ];
 
     const thumbStyle = {
-      right: '4px',
-      borderRadius: '5px',
-      backgroundColor: '#027be3',
-      width: '5px',
-      opacity: 0.75
-    }
+      right: "4px",
+      borderRadius: "5px",
+      backgroundColor: "#027be3",
+      width: "5px",
+      opacity: 0.75,
+    };
 
     const formatTime = (timestamp) => {
-      const date = new Date(timestamp)
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
 
     const scrollToBottom = () => {
       nextTick(() => {
         if (scrollArea.value) {
-          const scrollTarget = scrollArea.value.getScrollTarget()
-          scrollArea.value.setScrollPosition('vertical', scrollTarget.scrollHeight, 300)
+          const scrollTarget = scrollArea.value.getScrollTarget();
+          scrollArea.value.setScrollPosition(
+            "vertical",
+            scrollTarget.scrollHeight,
+            300
+          );
         }
-      })
-    }
+      });
+    };
 
     const sendMessage = () => {
-      if (!messageInput.value.trim() || !props.connected || !props.room) return
+      if (!messageInput.value.trim() || !props.connected || !props.room) return;
 
       const message = {
         text: messageInput.value.trim(),
         sender: props.currentUsername,
         timestamp: Date.now(),
-        isOwn: true
-      }
+        isOwn: true,
+      };
 
       // Send via LiveKit data channel
-      const encoder = new TextEncoder()
-      const data = encoder.encode(JSON.stringify(message))
-      props.room.localParticipant.publishData(data, { reliable: true })
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(JSON.stringify(message));
+        props.room.localParticipant.publishData(data, { reliable: true });
 
-      // Add to local messages
-      messages.value.push(message)
-      messageInput.value = ''
-      scrollToBottom()
-    }
+        // Add to local messages
+        messages.value.push(message);
+        messageInput.value = "";
+        scrollToBottom();
+      } catch (error) {
+        console.error("Failed to send message:", error);
+      }
+    };
 
     const addEmoji = (emoji) => {
-      messageInput.value += emoji
-    }
+      messageInput.value += emoji;
+    };
 
     const receiveMessage = (payload, participant) => {
       try {
-        const decoder = new TextDecoder()
-        const messageStr = decoder.decode(payload)
-        const message = JSON.parse(messageStr)
+        const decoder = new TextDecoder();
+        const messageStr = decoder.decode(payload);
+        const message = JSON.parse(messageStr);
 
         messages.value.push({
           ...message,
-          isOwn: false
-        })
-        scrollToBottom()
-        emit('new-message')
+          isOwn: false,
+        });
+        scrollToBottom();
+        emit("new-message");
       } catch (error) {
-        console.error('Failed to parse message:', error)
+        console.error("Failed to parse message:", error);
       }
-    }
+    };
 
     // Watch for room changes to set up data listener
-    watch(() => props.room, (newRoom) => {
-      if (newRoom) {
-        newRoom.on('DataReceived', receiveMessage)
+    watch(
+      () => props.room,
+      (newRoom, oldRoom) => {
+        // Clean up old listener
+        if (oldRoom) {
+          try {
+            oldRoom.off("DataReceived", receiveMessage);
+          } catch (error) {
+            console.error("Error removing old listener:", error);
+          }
+        }
+        
+        // Set up new listener
+        if (newRoom) {
+          try {
+            newRoom.on("DataReceived", receiveMessage);
+          } catch (error) {
+            console.error("Error setting up listener:", error);
+          }
+        }
+      },
+      { immediate: true }
+    );
+
+    // Cleanup on unmount
+    onBeforeUnmount(() => {
+      if (props.room) {
+        try {
+          props.room.off("DataReceived", receiveMessage);
+        } catch (error) {
+          console.error("Error cleaning up listener:", error);
+        }
       }
-    }, { immediate: true })
+    });
 
     return {
       messages,
@@ -186,10 +234,10 @@ export default {
       thumbStyle,
       formatTime,
       sendMessage,
-      addEmoji
-    }
-  }
-}
+      addEmoji,
+    };
+  },
+};
 </script>
 
 <style lang="scss" scoped>

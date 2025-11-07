@@ -363,7 +363,7 @@ export default {
     const callDuration = ref('00:00')
 
     // LiveKit
-    let room = null
+    let room = ref(null)
     let localAudioTrack = ref(null)
     let localVideoTrack = ref(null)
     let localScreenTrack = null
@@ -469,14 +469,14 @@ export default {
 
         const { token, url } = response.data
 
-        room = new Room({
+        room.value = new Room({
           adaptiveStream: true,
           dynacast: true
         })
 
         setupRoomListeners()
 
-        await room.connect(url, String(token))
+        await room.value.connect(url, String(token))
 
         await enumerateDevices()
 
@@ -486,7 +486,7 @@ export default {
         })
 
         for (const track of tracks) {
-          await room.localParticipant.publishTrack(track)
+          await room.value.localParticipant.publishTrack(track)
 
           if (track.kind === Track.Kind.Video) {
             localVideoTrack.value = {
@@ -532,14 +532,58 @@ export default {
 
     // Room event listeners
     const setupRoomListeners = () => {
-      room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
-      room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
-      room.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
-      room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
-      room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
-      room.on(RoomEvent.Disconnected, handleDisconnected)
+      room.value.on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
+      room.value.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+      room.value.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
+      room.value.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+      room.value.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
+      room.value.on(RoomEvent.Disconnected, handleDisconnected)
     }
 
+    // const handleTrackSubscribed = (track, publication, participant) => {
+    //   console.log('Track subscribed:', track.kind, 'from', participant.identity)
+
+    //   const existingParticipant = remoteParticipants.value.find(
+    //     p => p.id === participant.sid
+    //   )
+
+    //   if (track.kind === Track.Kind.Video) {
+    //     if (publication.source === Track.Source.ScreenShare) {
+    //       featuredVideo.value = {
+    //         track,
+    //         name: participant.identity,
+    //         isScreenShare: true,
+    //         id: participant.sid
+    //       }
+          
+    //       nextTick(() => {
+    //         if (featuredVideoEl.value) {
+    //           track.attach(featuredVideoEl.value)
+    //         }
+    //       })
+    //     } else {
+    //       if (existingParticipant) {
+    //         existingParticipant.videoTrack = track
+    //       } else {
+    //         remoteParticipants.value.push({
+    //           id: participant.sid,
+    //           name: participant.identity,
+    //           videoTrack: track,
+    //           audioMuted: false,
+    //           isSpeaking: false
+    //         })
+    //       }
+    //     }
+    //   } else if (track.kind === Track.Kind.Audio) {
+    //     const audioEl = track.attach()
+    //     document.body.appendChild(audioEl)
+        
+    //     if (existingParticipant) {
+    //       existingParticipant.audioTrack = track
+    //     }
+    //   }
+    // }
+    
     const handleTrackSubscribed = (track, publication, participant) => {
       console.log('Track subscribed:', track.kind, 'from', participant.identity)
 
@@ -549,11 +593,13 @@ export default {
 
       if (track.kind === Track.Kind.Video) {
         if (publication.source === Track.Source.ScreenShare) {
+          // Create proper video track object for screen share
           featuredVideo.value = {
-            track,
+            track: { track }, // Wrap in object structure expected by ResizableVideo
             name: participant.identity,
             isScreenShare: true,
-            id: participant.sid
+            id: participant.sid,
+            isLocal: false
           }
           
           nextTick(() => {
@@ -562,15 +608,19 @@ export default {
             }
           })
         } else {
+          // Create proper video track object structure
+          const videoTrackObj = { track }
+          
           if (existingParticipant) {
-            existingParticipant.videoTrack = track
+            existingParticipant.videoTrack = videoTrackObj
           } else {
             remoteParticipants.value.push({
               id: participant.sid,
               name: participant.identity,
-              videoTrack: track,
+              videoTrack: videoTrackObj,
               audioMuted: false,
-              isSpeaking: false
+              isSpeaking: false,
+              isLocal: false
             })
           }
         }
@@ -580,9 +630,12 @@ export default {
         
         if (existingParticipant) {
           existingParticipant.audioTrack = track
+          existingParticipant.audioMuted = track.isMuted
         }
       }
     }
+
+
 
     const handleTrackUnsubscribed = (track, publication, participant) => {
       track.detach()
@@ -638,7 +691,7 @@ export default {
     }
 
     const processExistingParticipants = () => {
-      room.remoteParticipants.forEach(participant => {
+      room.value.remoteParticipants.forEach(participant => {
         console.log('Existing participant:', participant.identity)
         
         participant.trackPublications.forEach(publication => {
@@ -681,14 +734,14 @@ export default {
         if (isScreenSharing.value) {
           if (localScreenTrack) {
             const publications = Array.from(
-              room.localParticipant.trackPublications.values()
+              room.value.localParticipant.trackPublications.values()
             )
             const screenPub = publications.find(
               p => p.source === Track.Source.ScreenShare
             )
 
             if (screenPub) {
-              await room.localParticipant.unpublishTrack(screenPub.track)
+              await room.value.localParticipant.unpublishTrack(screenPub.track)
             }
 
             localScreenTrack.stop()
@@ -707,7 +760,7 @@ export default {
 
           const screenVideoTrack = screenStream.getVideoTracks()[0]
 
-          await room.localParticipant.publishTrack(screenVideoTrack, {
+          await room.value.localParticipant.publishTrack(screenVideoTrack, {
             name: 'screen-share',
             source: Track.Source.ScreenShare
           })
@@ -839,8 +892,8 @@ export default {
         clearInterval(timerInterval)
       }
 
-      if (room) {
-        room.disconnect()
+      if (room.value) {
+        room.value.disconnect()
       }
 
       try {
@@ -863,11 +916,11 @@ export default {
         })
         
         if (localAudioTrack.value) {
-          await room.localParticipant.unpublishTrack(localAudioTrack.value)
+          await room.value.localParticipant.unpublishTrack(localAudioTrack.value)
           localAudioTrack.value.stop()
         }
 
-        await room.localParticipant.publishTrack(newTrack)
+        await room.value.localParticipant.publishTrack(newTrack)
         localAudioTrack.value = newTrack
         selectedAudioDevice.value = deviceId
         
@@ -890,11 +943,11 @@ export default {
         })
         
         if (localVideoTrack.value?.track) {
-          await room.localParticipant.unpublishTrack(localVideoTrack.value.track)
+          await room.value.localParticipant.unpublishTrack(localVideoTrack.value.track)
           localVideoTrack.value.track.stop()
         }
 
-        await room.localParticipant.publishTrack(newTrack)
+        await room.value.localParticipant.publishTrack(newTrack)
         localVideoTrack.value = {
           track: newTrack,
           isLocal: true,
@@ -940,8 +993,8 @@ export default {
         clearInterval(timerInterval)
       }
       
-      if (room) {
-        room.disconnect()
+      if (room.value) {
+        room.value.disconnect()
       }
     })
 
