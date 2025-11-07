@@ -5,12 +5,11 @@ WORKDIR /app
 # First, install the Quasar CLI globally
 RUN npm install -g @quasar/cli
 
-COPY package*.json ./
+# Copy entire project
+COPY . .
 
 # Install dependencies
 RUN npm install
-
-COPY . .
 
 # Build Quasar app for production
 RUN quasar build
