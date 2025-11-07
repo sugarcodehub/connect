@@ -72,6 +72,13 @@
       </div>
 
       <div class="room-info">Room: {{ roomName }}</div>
+
+      <!-- Chat Panel -->
+      <ChatPanel
+        :room="room"
+        :connected="connected"
+        :current-username="username"
+      />
     </div>
   </div>
 </template>
@@ -383,7 +390,7 @@ export default {
     const toggleRecording = async () => {
       try {
         if (isRecording.value) {
-          // Stop recording logic (LiveKit server-side recording)
+          // Stop recording
           await axios.post(
             "/api/rooms/stop-recording",
             {
@@ -394,6 +401,7 @@ export default {
             }
           );
           isRecording.value = false;
+          console.log("Recording stopped");
         } else {
           // Start recording
           await axios.post(
@@ -406,9 +414,13 @@ export default {
             }
           );
           isRecording.value = true;
+          console.log("Recording started (requires LiveKit Egress service)");
         }
       } catch (error) {
         console.error("Recording error:", error);
+        alert(
+          "Recording feature requires LiveKit Egress service. Feature disabled for now."
+        );
       }
     };
 
