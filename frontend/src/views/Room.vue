@@ -357,6 +357,7 @@ export default {
           await room.localParticipant.publishTrack(screenVideoTrack, {
             name: "screen-share",
             source: Track.Source.ScreenShare,
+            // audio: true,
           });
 
           localScreenTrack = screenVideoTrack;

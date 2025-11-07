@@ -56,7 +56,7 @@ services:
   # Frontend (Vue.js)
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-quasar
       dockerfile: Dockerfile
     ports:
       - "8080:80"
