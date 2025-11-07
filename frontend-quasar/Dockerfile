@@ -9,7 +9,7 @@ RUN npm install
 COPY . .
 
 # Build Quasar app for production
-RUN npx quasar build
+# RUN npx quasar build
 
 # Production stage with Nginx
 FROM nginx:alpine
